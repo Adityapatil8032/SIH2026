@@ -9,11 +9,7 @@
       "destination": "/api/index"
     },
     {
-      "source": "/auth/callback(.*)",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/((?!api|auth/callback).*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]

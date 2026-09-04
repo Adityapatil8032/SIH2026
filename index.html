@@ -21,12 +21,14 @@
           var code = params.get('code');
           var error = params.get('error');
           if (window.opener) {
-            window.opener.postMessage({
-              type: 'OAUTH_AUTH_SUCCESS',
-              code: code || '',
-              error: error || ''
-            }, '*');
-            setTimeout(function() { window.close(); }, 300);
+            try {
+              window.opener.postMessage({
+                type: 'OAUTH_AUTH_SUCCESS',
+                code: code || '',
+                error: error || ''
+              }, '*');
+            } catch (e) {}
+            setTimeout(function() { window.close(); }, 350);
           } else {
             window.location.replace('/');
           }
