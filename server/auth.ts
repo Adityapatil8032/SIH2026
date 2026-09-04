@@ -263,6 +263,22 @@ authRouter.get('/google/url', (req: Request, res: Response) => {
   });
 });
 
+// 3b. POST /api/auth/google/set-client-id (Configure Google Client ID on the fly)
+authRouter.post('/google/set-client-id', (req: Request, res: Response) => {
+  const { clientId, clientSecret } = req.body;
+  if (clientId) {
+    process.env.GOOGLE_CLIENT_ID = clientId.trim();
+  }
+  if (clientSecret) {
+    process.env.GOOGLE_CLIENT_SECRET = clientSecret.trim();
+  }
+  return res.json({
+    success: true,
+    configured: Boolean(process.env.GOOGLE_CLIENT_ID),
+    clientId: process.env.GOOGLE_CLIENT_ID ? `${process.env.GOOGLE_CLIENT_ID.slice(0, 8)}...` : null
+  });
+});
+
 // 4. POST /api/auth/google
 authRouter.post('/google', async (req: Request, res: Response) => {
   try {

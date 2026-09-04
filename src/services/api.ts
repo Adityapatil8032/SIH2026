@@ -534,6 +534,19 @@ export async function loginWithGoogle(payload: {
   return data;
 }
 
+export async function updateGoogleClientIdConfig(clientId: string, clientSecret?: string): Promise<{
+  success: boolean;
+  configured: boolean;
+  clientId: string | null;
+}> {
+  const res = await fetch('/api/auth/google/set-client-id', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ clientId, clientSecret })
+  });
+  return res.json();
+}
+
 export async function requestForgotPassword(payload: {
   email: string;
   newPassword?: string;
