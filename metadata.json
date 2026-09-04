@@ -1,0 +1,7 @@
+{
+  "name": "Apna Route",
+  "description": "India's Next-Gen AI Travel, Tourism, Route Planning and Safety Grid.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
