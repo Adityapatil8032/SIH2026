@@ -9,6 +9,9 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
+  // Trust proxy for secure HTTPS protocol detection behind proxies & Vercel
+  app.set('trust proxy', 1);
+
   // Body parser for JSON
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));

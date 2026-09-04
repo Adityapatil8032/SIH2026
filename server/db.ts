@@ -26,12 +26,13 @@ export interface SessionDocument {
 // -------------------------------------------------------------
 // 1. In-memory + file-backed fallback store
 // -------------------------------------------------------------
-const BACKUP_FILE = path.join(process.cwd(), '.data', 'users.json');
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const DATA_DIR = isServerless ? path.join('/tmp', '.data') : path.join(process.cwd(), '.data');
+const BACKUP_FILE = path.join(DATA_DIR, 'users.json');
 
 try {
-  const dir = path.dirname(BACKUP_FILE);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
   }
 } catch {
   // Non-fatal
@@ -53,9 +54,8 @@ try {
 
 function persistToFile() {
   try {
-    const dir = path.dirname(BACKUP_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
     }
     fs.writeFileSync(
       BACKUP_FILE,
@@ -71,12 +71,17 @@ function persistToFile() {
 // 2. Supabase Integration (Free PostgreSQL Cloud Database)
 // -------------------------------------------------------------
 export function getSupabaseConfig(): { url: string; key: string } | null {
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const url =
+    process.env.SUPABASE_URL ||
+    process.env.VITE_SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key =
     process.env.SUPABASE_KEY ||
     process.env.SUPABASE_ANON_KEY ||
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.VITE_SUPABASE_ANON_KEY;
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return null;
   return {
     url: url.replace(/\/+$/, ''),

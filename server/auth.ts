@@ -238,10 +238,33 @@ authRouter.post('/login', async (req: Request, res: Response) => {
   }
 });
 
+// Helper to resolve canonical application URL (supports Vercel HTTPS & edge proxies)
+export function resolveAppUrl(req: Request): string {
+  if (process.env.APP_URL && process.env.APP_URL !== 'MY_APP_URL' && process.env.APP_URL.trim() !== '') {
+    return process.env.APP_URL.replace(/\/+$/, '');
+  }
+  if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL.replace(/\/+$/, '')}`;
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL.replace(/\/+$/, '')}`;
+  }
+  const forwardedProto = req.headers['x-forwarded-proto'];
+  const host = req.get('host') || 'localhost:3000';
+  let proto = 'https';
+  if (host.includes('localhost') || host.includes('127.0.0.1')) {
+    proto = typeof forwardedProto === 'string' ? forwardedProto.split(',')[0].trim() : (req.protocol || 'http');
+  }
+  return `${proto}://${host}`;
+}
+
 // 3. GET /api/auth/google/url (Helper for popup OAuth)
 authRouter.get('/google/url', (req: Request, res: Response) => {
-  const clientId = process.env.GOOGLE_CLIENT_ID || process.env.CLIENT_ID || '';
-  const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+  const clientId =
+    process.env.GOOGLE_CLIENT_ID ||
+    process.env.CLIENT_ID ||
+    '916705206212-dsdr7ep5jefrqhmkffl6cjjr3fn7k774.apps.googleusercontent.com';
+  const appUrl = resolveAppUrl(req);
   const redirectUri = `${appUrl}/auth/callback`;
 
   const params = new URLSearchParams({
@@ -259,7 +282,8 @@ authRouter.get('/google/url', (req: Request, res: Response) => {
     url,
     redirectUri,
     configured: Boolean(clientId),
-    clientId: clientId ? `${clientId.slice(0, 8)}...` : null
+    clientId: clientId ? `${clientId.slice(0, 8)}...` : null,
+    fullClientId: clientId || null
   });
 });
 
@@ -275,7 +299,8 @@ authRouter.post('/google/set-client-id', (req: Request, res: Response) => {
   return res.json({
     success: true,
     configured: Boolean(process.env.GOOGLE_CLIENT_ID),
-    clientId: process.env.GOOGLE_CLIENT_ID ? `${process.env.GOOGLE_CLIENT_ID.slice(0, 8)}...` : null
+    clientId: process.env.GOOGLE_CLIENT_ID ? `${process.env.GOOGLE_CLIENT_ID.slice(0, 8)}...` : null,
+    fullClientId: process.env.GOOGLE_CLIENT_ID || null
   });
 });
 
@@ -289,12 +314,25 @@ authRouter.post('/google', async (req: Request, res: Response) => {
     let googleId = '';
     let avatar = '';
 
-    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.CLIENT_SECRET;
+    const clientId =
+      process.env.GOOGLE_CLIENT_ID ||
+      process.env.CLIENT_ID ||
+      '916705206212-dsdr7ep5jefrqhmkffl6cjjr3fn7k774.apps.googleusercontent.com';
+    const clientSecret =
+      process.env.GOOGLE_CLIENT_SECRET ||
+      process.env.CLIENT_SECRET ||
+      '';
 
     // A) If auth code was returned from OAuth Popup
-    if (code && clientId && clientSecret) {
-      const appUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    if (code) {
+      if (!clientSecret) {
+        console.warn('[Google Auth] Authorization code received, but GOOGLE_CLIENT_SECRET is not set in .env!');
+        return res.status(400).json({
+          error: 'Missing GOOGLE_CLIENT_SECRET in .env. Please add your Client Secret from Google Cloud Console.'
+        });
+      }
+
+      const appUrl = resolveAppUrl(req);
       const effectiveRedirect = redirectUri || `${appUrl}/auth/callback`;
 
       try {
@@ -303,7 +341,7 @@ authRouter.post('/google', async (req: Request, res: Response) => {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({
             code,
-            client_id: clientId,
+            client_id: clientId || '',
             client_secret: clientSecret,
             redirect_uri: effectiveRedirect,
             grant_type: 'authorization_code'
@@ -311,6 +349,13 @@ authRouter.post('/google', async (req: Request, res: Response) => {
         });
 
         const tokenData = await tokenRes.json();
+        if (tokenData.error) {
+          console.error('[Google Token Exchange Error Response]:', tokenData);
+          return res.status(400).json({
+            error: `Google Token Error: ${tokenData.error_description || tokenData.error}`
+          });
+        }
+
         if (tokenData.access_token) {
           const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
             headers: { Authorization: `Bearer ${tokenData.access_token}` }
@@ -321,8 +366,11 @@ authRouter.post('/google', async (req: Request, res: Response) => {
           googleId = userData.id;
           avatar = userData.picture || '';
         }
-      } catch (tokenErr) {
-        console.error('[Google Token Exchange Error]:', tokenErr);
+      } catch (tokenErr: any) {
+        console.error('[Google Token Exchange Exception]:', tokenErr);
+        return res.status(500).json({
+          error: `Failed to exchange token with Google: ${tokenErr?.message || tokenErr}`
+        });
       }
     }
 

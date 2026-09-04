@@ -501,6 +501,7 @@ export async function getGoogleAuthUrl(): Promise<{
   redirectUri: string;
   configured: boolean;
   clientId: string | null;
+  fullClientId?: string | null;
 }> {
   const res = await fetch('/api/auth/google/url');
   if (!res.ok) {
